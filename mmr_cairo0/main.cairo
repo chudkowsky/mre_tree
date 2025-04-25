@@ -17,19 +17,21 @@ from starkware.cairo.common.segments import relocate_segment
 
 func main{output_ptr: felt*, range_check_ptr, poseidon_ptr: PoseidonBuiltin*}() {
     alloc_locals;
+    
     let (slots: felt*) = alloc();
-    assert slots[0] = 0;
-    assert slots[1] = 112;
-    assert slots[2] = 2123123;
-    assert slots[3] = 4;
-    assert slots[4] = 5;
-    assert slots[5] = 6;
-    assert slots[6] = 7;
-    assert slots[7] = 0;
-    assert slots[8] = 0;
-    let slots_len = 9;
+    local slots_len;
+    
+    %{
+    with open('numbers.txt', 'r') as file:
+        numbers = [int(line.strip()) for line in file]
+    slots_len = len(numbers)
+    ids.slots_len = slots_len;
+    for i in range(slots_len):
+        memory[ids.slots+i] = numbers[i]
+    %}
 
-
+    print_array(array=slots, array_len=slots_len);
+    
     let (filtered_slots: felt*) = alloc();
     let filtered_slots_len = 0;
 
@@ -65,7 +67,8 @@ func main{output_ptr: felt*, range_check_ptr, poseidon_ptr: PoseidonBuiltin*}() 
     }
 
     let filtered_slots_len = next_power_of_2_value;
-    
+
+    print_array(array=sorted_array, array_len=filtered_slots_len);
     let (hash_tree) = merkle_tree_hash(array=sorted_array, array_len=filtered_slots_len);
     local hash_tree = hash_tree;
 
@@ -149,9 +152,10 @@ func is_sorted_recursively{range_check_ptr}(array: felt*, array_len: felt, index
 func print_array(array: felt*, array_len: felt) {
     %{
         dlugosc=ids.array_len 
-        print(dlugosc)
+        print("dlugosc: ", dlugosc)
         for i in range(dlugosc):
             print(memory[ids.array+i])
+        print("--------------------------------")
     %}
     return ();
 }
