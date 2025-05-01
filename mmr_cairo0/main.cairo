@@ -15,89 +15,68 @@ from starkware.cairo.common.segments import relocate_segment
 
 //test flow should look like this: user provides array, we filter it, we sort it, we add zeros if needed, we hash it
 
+struct Crdt {
+    key: felt,
+    type: felt,
+}
+
 func main{output_ptr: felt*, range_check_ptr, poseidon_ptr: PoseidonBuiltin*}() {
     alloc_locals;
-    
-    let (slots: felt*) = alloc();
+
+    let (slots: Crdt*) = alloc();
     local slots_len;
-    
-    %{
-    with open('numbers.txt', 'r') as file:
-        numbers = [int(line.strip()) for line in file]
-    slots_len = len(numbers)
-    ids.slots_len = slots_len;
-    for i in range(slots_len):
-        memory[ids.slots+i] = numbers[i]
-    %}
-
+    assert slots[0] = Crdt(key=0, type=1);
+    assert slots[1] = Crdt(key=1, type=2);
+    assert slots[2] = Crdt(key=2, type=1);
+    assert slots[3] = Crdt(key=3, type=3);
+    assert slots[4] = Crdt(key=123, type=2);
+    assert slots[5] = Crdt(key=5, type=1);
+    assert slots[6] = Crdt(key=6, type=3);
+    assert slots[7] = Crdt(key=7, type=2);
+    slots_len = 8;
     print_array(array=slots, array_len=slots_len);
-    
-    let (filtered_slots: felt*) = alloc();
-    let filtered_slots_len = 0;
 
-    filter_slots{filtered_slots=filtered_slots, filtered_slots_len=filtered_slots_len}(
-        slots=slots, slots_len=slots_len
-    );
     local sorted_array : felt*;
-    let (is_sorted) = is_sorted_recursively(array=filtered_slots, array_len=filtered_slots_len, index=0);
+    let (is_sorted) = is_sorted_recursively(array=slots, array_len=slots_len, index=0);
 
     if (is_sorted == 0) {
-        let temp = sort_array(array=filtered_slots, array_len=filtered_slots_len);
+        %{print("is not sorted")%}
+        let temp = sort_array(array=slots, array_len=slots_len);
         sorted_array = temp;
-        let (is_sorted) = is_sorted_recursively(array=sorted_array, array_len=filtered_slots_len, index=0);
-        assert is_sorted = 1;
+        print_array(array=sorted_array, array_len=slots_len);
         tempvar range_check_ptr = range_check_ptr;
-    }else{
-        sorted_array = filtered_slots;        
+    } else {
+    %{print("is sorted")%}
+        sorted_array = slots;        
         tempvar range_check_ptr = range_check_ptr;
     }
 
     tempvar range_check_ptr = range_check_ptr;
 
-    let next_power_of_2 = log2_ceil(filtered_slots_len);
-    let (next_power_of_2_value) = pow(2, next_power_of_2);
+    // let next_power_of_2 = log2_ceil(slots_len);
+    // let (next_power_of_2_value) = pow(2, next_power_of_2);
 
-    if (next_power_of_2_value != filtered_slots_len) {
-        let added_zeros = 0;
-        let array = &sorted_array[filtered_slots_len];
-        add_zeros{array=array, added_zeros=added_zeros}(
-            zeros_to_add=next_power_of_2_value - filtered_slots_len
-        );
-        assert added_zeros = next_power_of_2_value - filtered_slots_len;
-    }
+    // if (next_power_of_2_value != slots_len) {
+    //     let added_zeros = 0;
+    //     let array = &sorted_array[slots_len];
+    //     add_zeros{array=array, added_zeros=added_zeros}(
+    //         zeros_to_add=next_power_of_2_value - slots_len
+    //     );
+    //     assert added_zeros = next_power_of_2_value - slots_len;
+    // }
 
-    let filtered_slots_len = next_power_of_2_value;
+    // let filtered_slots_len = next_power_of_2_value;
 
-    print_array(array=sorted_array, array_len=filtered_slots_len);
-    let (hash_tree) = merkle_tree_hash(array=sorted_array, array_len=filtered_slots_len);
-    local hash_tree = hash_tree;
+    // print_array(array=sorted_array, array_len=filtered_slots_len);
+    // let (hash_tree) = merkle_tree_hash(array=sorted_array, array_len=filtered_slots_len);
+    // local hash_tree = hash_tree;
 
-    serialize_word(hash_tree);
-
+    // serialize_word(hash_tree);
+    
     return ();
 }
 
-//Dummy function to replicate the behaviour in snos where we filter some data
-func filter_slots{filtered_slots: felt*, filtered_slots_len: felt}(slots: felt*, slots_len: felt) {
-    alloc_locals;
-    if (slots_len == 0) {
-        return ();
-    }
 
-    let element = slots[0];
-
-    if (element != 0) {
-        assert filtered_slots[filtered_slots_len] = element;  // Write directly to the current position
-        let next_len = filtered_slots_len + 1;
-        return filter_slots{filtered_slots=filtered_slots, filtered_slots_len=next_len}(
-            slots=&slots[1], slots_len=slots_len - 1
-        );
-    }
-
-    return filter_slots{filtered_slots=filtered_slots, filtered_slots_len=filtered_slots_len}(
-        slots=&slots[1], slots_len=slots_len - 1
-    );
-}
 // Function to add zeros to the array to make it a power of 2
 func add_zeros{array: felt*, added_zeros: felt}(zeros_to_add: felt) {
     if (zeros_to_add == 0) {
@@ -139,7 +118,7 @@ func is_sorted_recursively{range_check_ptr}(array: felt*, array_len: felt, index
     if (index == array_len - 1) {
         return (is_sorted=1);
     }
-    let x = is_le_felt(array[index], array[index + 1]);
+    let x = is_le_felt(array[index*2], array[(index + 1)*2]);
 
     if (x == 0) {
         return (is_sorted=0);
@@ -154,7 +133,8 @@ func print_array(array: felt*, array_len: felt) {
         dlugosc=ids.array_len 
         print("dlugosc: ", dlugosc)
         for i in range(dlugosc):
-            print(memory[ids.array+i])
+            print("key: ", memory[ids.array+2*i], end=" ")
+            print("type: ", memory[ids.array+2*i+1])
         print("--------------------------------")
     %}
     return ();
@@ -174,3 +154,57 @@ func sort_array(array: felt*, array_len: felt) -> felt* {
 
     return sorted_array;
 }
+
+
+func count_occurrences{range_check_ptr}(array: felt*, array_len: felt, element: felt) -> (count: felt) {
+    if (array_len == 0) {
+        return (count=0);
+    }
+
+    if (array[0] == element) {
+        let (rest_count) = count_occurrences(array=array + 1, array_len=array_len - 1, element=element);
+        return (count=1 + rest_count);
+    } else {
+        return count_occurrences(array=array + 1, array_len=array_len - 1, element=element);
+    }
+}
+
+
+// // Function to verify that two arrays contain exactly the same elements
+// func verify_same_elements{range_check_ptr}(array1: felt*, array2: felt*, len: felt) -> (is_same: felt) {
+//     if (len == 0) {
+//         return (is_same=1);
+//     }
+
+//     // Check if current element exists in array2
+//     let element = array1[0];
+//     let (found) = element_exists_in_array(array2, len, element);
+    
+//     if (found == 0) {
+//         return (is_same=0);
+//     }
+
+//     // Check if array2 element exists in array1
+//     let element2 = array2[0];
+//     let (found2) = element_exists_in_array(array1, len, element2);
+    
+//     if (found2 == 0) {
+//         return (is_same=0);
+//     }
+
+//     // Check rest of the arrays
+//     return verify_same_elements(array1=array1 + 1, array2=array2 + 1, len=len - 1);
+// }
+
+// // Helper function to check if element exists in array
+// func element_exists_in_array{range_check_ptr}(array: felt*, len: felt, element: felt) -> (exists: felt) {
+//     if (len == 0) {
+//         return (exists=0);
+//     }
+
+//     if (array[0] == element) {
+//         return (exists=1);
+//     }
+
+//     return element_exists_in_array(array=array + 1, len=len - 1, element=element);
+// }
